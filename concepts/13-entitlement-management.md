@@ -1,0 +1,27 @@
+# Entitlement Management (Entra ID Governance)
+
+Package and automate access to resources — groups, apps, SharePoint sites.
+
+**Access packages:**
+Bundle of resources a user can request. Example: "New Employee — Engineering" package includes:
+- Engineering M365 group
+- Azure DevOps project
+- Confluence space
+- GitHub organization
+
+**Request and approval workflow:**
+1. User goes to My Access portal (myaccess.microsoft.com)
+2. Requests an access package
+3. Approver(s) get notified and approve/deny
+4. Access granted automatically
+5. Access expires after defined period (e.g., 1 year)
+
+**External access:**
+- Guest users can request access packages too
+- Connected organizations: pre-approve guests from partner tenants
+- Auto-remove guest users when access expires
+
+**Why it matters:**
+Replaces ad-hoc group membership emails with a governed, auditable process.
+
+**Exam relevance:** SC-300 Topic 4

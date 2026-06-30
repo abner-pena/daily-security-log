@@ -1,0 +1,67 @@
+name: Daily Security Log
+
+on:
+  schedule:
+    - cron: '0 13 * * *'  # 9am ET (UTC-4) every day
+  workflow_dispatch:       # allow manual trigger
+
+permissions:
+  contents: write
+
+jobs:
+  daily-log:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Generate daily log entry
+        run: |
+          DATE=$(date +%Y-%m-%d)
+          DAY=$(date +%A)
+          WEEK=$(date +%V)
+
+          # Pick a concept file based on day of year (rotates through all concepts)
+          DOY=$(date +%j)
+          CONCEPTS=(concepts/*.md)
+          COUNT=${#CONCEPTS[@]}
+          INDEX=$(( (10#$DOY - 1) % COUNT ))
+          CONCEPT_FILE="${CONCEPTS[$INDEX]}"
+
+          mkdir -p logs
+
+          cat > logs/$DATE.md << EOF
+          # Security Log — $DATE ($DAY)
+
+          ## Today's Focus
+          $(head -1 $CONCEPT_FILE | sed 's/# //')
+
+          ## Concept Summary
+          $(cat $CONCEPT_FILE)
+
+          ## Study Session
+          - [ ] Review concept
+          - [ ] Practice in lab or Azure portal
+          - [ ] Note any questions
+
+          ---
+          *Week $WEEK of Security+ → SC-300 cert journey*
+          EOF
+
+          echo "Created log for $DATE"
+
+      - name: Update README study streak
+        run: |
+          DATE=$(date +%Y-%m-%d)
+          LOG_COUNT=$(ls logs/*.md 2>/dev/null | wc -l | tr -d ' ')
+          sed -i "s/Last updated: .*/Last updated: $DATE/" README.md
+          sed -i "s/Total entries: .*/Total entries: $LOG_COUNT/" README.md
+
+      - name: Commit and push
+        run: |
+          git config user.name "Abner Peña"
+          git config user.email "abner.pena97@gmail.com"
+          git add logs/ README.md
+          git diff --staged --quiet || git commit -m "study: $(date +%Y-%m-%d) daily IAM security log"
+          git push
