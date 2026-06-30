@@ -6,7 +6,7 @@ Daily study log — IAM concepts, Security+ prep, and SC-300 material. One entry
 
 ---
 
-Last updated: 2026-06-29
+Last updated: 2026-06-30
 Total entries: 1
 
 ---
