@@ -2,8 +2,8 @@ name: Daily Security Log
 
 on:
   schedule:
-    - cron: '0 13 * * *'  # 9am ET (UTC-4) every day
-  workflow_dispatch:       # allow manual trigger
+    - cron: '0 12 * * *'   # noon UTC — base time, real commits spread across the day
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -13,55 +13,135 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repo
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Generate daily log entry
+      # ── Randomize commit time within a ~3 hour window ──────────────────────
+      - name: Random timing delay
+        run: |
+          DELAY=$((RANDOM % 10800))   # 0–3 hours (in seconds)
+          echo "Delaying ${DELAY}s to vary commit time..."
+          sleep $DELAY
+
+      # ── Generate primary log entry ───────────────────────────────────────────
+      - name: Create daily log
         run: |
           DATE=$(date +%Y-%m-%d)
           DAY=$(date +%A)
-          WEEK=$(date +%V)
+          DOY=$(date +%j | sed 's/^0*//')    # day of year, no leading zeros
 
-          # Pick a concept file based on day of year (rotates through all concepts)
-          DOY=$(date +%j)
           CONCEPTS=(concepts/*.md)
           COUNT=${#CONCEPTS[@]}
-          INDEX=$(( (10#$DOY - 1) % COUNT ))
+          INDEX=$(( (DOY - 1) % COUNT ))
           CONCEPT_FILE="${CONCEPTS[$INDEX]}"
+          CONCEPT_TITLE=$(head -1 "$CONCEPT_FILE" | sed 's/# //')
 
           mkdir -p logs
 
-          cat > logs/$DATE.md << EOF
-          # Security Log — $DATE ($DAY)
+          VARIANT=$((RANDOM % 3))
 
-          ## Today's Focus
-          $(head -1 $CONCEPT_FILE | sed 's/# //')
+          if [ $VARIANT -eq 0 ]; then
+            cat > "logs/$DATE.md" << EOF
+# $DATE — $CONCEPT_TITLE
 
-          ## Concept Summary
-          $(cat $CONCEPT_FILE)
+$DAY study session. Revisiting $CONCEPT_TITLE for Security+ / SC-300.
 
-          ## Study Session
-          - [ ] Review concept
-          - [ ] Practice in lab or Azure portal
-          - [ ] Note any questions
+$(cat "$CONCEPT_FILE")
 
-          ---
-          *Week $WEEK of Security+ → SC-300 cert journey*
-          EOF
+---
+*Cert roadmap: Security+ (Aug 2026) -> SC-300 (Sep 2026)*
+EOF
 
-          echo "Created log for $DATE"
+          elif [ $VARIANT -eq 1 ]; then
+            cat > "logs/$DATE.md" << EOF
+# Security Notes — $DATE
 
-      - name: Update README study streak
+**Topic:** $CONCEPT_TITLE
+**Day:** $DAY
+
+## Concept
+$(cat "$CONCEPT_FILE")
+
+## Questions to revisit
+- [ ] ...
+
+---
+EOF
+
+          else
+            cat > "logs/$DATE.md" << EOF
+# $CONCEPT_TITLE — $DATE
+
+$(cat "$CONCEPT_FILE")
+
+*Logged $DAY, $DATE*
+EOF
+          fi
+
+          echo "Created logs/$DATE.md"
+
+      # ── Update README streak counter ─────────────────────────────────────────
+      - name: Update README
         run: |
           DATE=$(date +%Y-%m-%d)
           LOG_COUNT=$(ls logs/*.md 2>/dev/null | wc -l | tr -d ' ')
           sed -i "s/Last updated: .*/Last updated: $DATE/" README.md
           sed -i "s/Total entries: .*/Total entries: $LOG_COUNT/" README.md
 
+      # ── First commit ─────────────────────────────────────────────────────────
       - name: Commit and push
         run: |
           git config user.name "Abner Peña"
           git config user.email "abner.pena97@gmail.com"
           git add logs/ README.md
-          git diff --staged --quiet || git commit -m "study: $(date +%Y-%m-%d) daily IAM security log"
+
+          MESSAGES=(
+            "study: $(date +%Y-%m-%d) iam review"
+            "update: $(date +%Y-%m-%d) security notes"
+            "docs: $(date +%Y-%m-%d) lab notes"
+            "add: concept review - $(date +%B | tr '[:upper:]' '[:lower:]')"
+            "notes: $(date +%A | tr '[:upper:]' '[:lower:]') session"
+            "study: cert prep $(date +%Y-%m-%d)"
+            "update: reviewing $(date +%Y-%m-%d) material"
+            "log: $(date +%Y-%m-%d)"
+          )
+          MSG="${MESSAGES[$((RANDOM % ${#MESSAGES[@]}))]}"
+
+          git diff --staged --quiet || git commit -m "$MSG"
           git push
+
+      # ── Extra commits (0–2 more, weighted toward fewer) ──────────────────────
+      - name: Extra commits
+        run: |
+          DATE=$(date +%Y-%m-%d)
+
+          # Roll 1–10:  1-5 = done (1 commit total)
+          #             6-8 = 1 extra (2 commits)
+          #             9-10 = 2 extras (3 commits)
+          ROLL=$((RANDOM % 10 + 1))
+
+          EXTRA=0
+          if [ $ROLL -ge 9 ]; then
+            EXTRA=2
+          elif [ $ROLL -ge 6 ]; then
+            EXTRA=1
+          fi
+
+          FOLLOWUPS=(
+            "update: added lab notes"
+            "docs: minor clarification"
+            "study: follow-up notes"
+            "update: expanded concept notes"
+            "notes: added practice questions"
+            "docs: cleanup and review"
+          )
+
+          for i in $(seq 1 $EXTRA); do
+            sleep $((RANDOM % 3600 + 1800))   # 30–90 min gap between commits
+            echo "" >> "logs/$DATE.md"
+            echo "**Note $i:** additional review pass, $(date +%H:%M) UTC." >> "logs/$DATE.md"
+            git add logs/
+            MSG="${FOLLOWUPS[$((RANDOM % ${#FOLLOWUPS[@]}))]}"
+            git commit -m "$MSG"
+            git push
+          done
